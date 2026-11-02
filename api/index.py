@@ -12,6 +12,7 @@ from datetime import datetime
 
 app = FastAPI()
 
+# Allow all origins for Vercel
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -123,6 +124,8 @@ async def send_s5(client, phone):
         return {"service": "S5.COM", "success": r.status_code == 200}
     except: return {"service": "S5.COM", "success": False}
 
+# THIS IS THE FIX: Accepting both paths
+@app.post("/api/attack")
 @app.post("/attack")
 async def run_attack(req: AttackRequest):
     if not validate_phone(req.phone):
