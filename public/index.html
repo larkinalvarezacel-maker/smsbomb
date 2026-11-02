@@ -118,20 +118,20 @@
             logContainer.innerHTML = '';
 
             try {
+                // Updated URL to match Vercel routes
                 const res = await fetch('/api/attack', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phone, batches: parseInt(batches) })
                 });
                 
-                const data = await res.json();
-
-                if (data.detail) {
-                    alert(data.detail);
-                    return;
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.detail || `Server returned ${res.status}`);
                 }
 
-                // Show results
+                const data = await res.json();
+
                 document.getElementById('statTotal').innerText = data.total;
                 document.getElementById('statSuccess').innerText = data.success;
                 document.getElementById('statFail').innerText = data.fail;
@@ -150,7 +150,7 @@
                 });
 
             } catch (e) {
-                alert("Error connecting to Vercel API.");
+                alert("Error: " + e.message);
             } finally {
                 btn.disabled = false;
                 btnText.innerText = "Launch Attack";
