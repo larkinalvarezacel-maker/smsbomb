@@ -118,8 +118,8 @@
             logContainer.innerHTML = '';
 
             try {
-                // Updated URL to match Vercel routes
-                const res = await fetch('/api/attack', {
+                // Using window.location.origin guarantees Vercel routes it correctly
+                const res = await fetch(`${window.location.origin}/api/attack`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phone, batches: parseInt(batches) })
