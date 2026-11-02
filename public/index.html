@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMS Bomb Service</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #09090b; --surface: #18181b; --border: #27272a;
+            --text: #fafafa; --text-muted: #a1a1aa;
+            --primary: #ffffff; --accent: #f43f5e; --success: #22c55e;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; padding: 20px;
+        }
+        .container { width: 100%; max-width: 600px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+        .header p { color: var(--text-muted); font-size: 14px; }
+        
+        .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+        .input-group { margin-bottom: 16px; }
+        .input-group label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
+        .input-group input {
+            width: 100%; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 16px; outline: none;
+        }
+        .input-group input:focus { border-color: var(--text-muted); }
+        
+        .btn {
+            width: 100%; padding: 14px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+        }
+        .btn-primary { background: var(--primary); color: #000; }
+        .btn-primary:hover { background: #ccc; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 24px; }
+        .stat-box { background: var(--bg); padding: 16px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
+        .stat-box span { display: block; font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 700; }
+        .stat-box label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; display: block; }
+
+        .logs { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; height: 250px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 16px; margin-top: 16px; display: none; }
+        .log-entry { display: flex; gap: 12px; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+        .log-time { color: var(--text-muted); }
+        .log-service { min-width: 80px; font-weight: 700; }
+        .log-msg { flex: 1; }
+        .log-success { color: var(--success); }
+        .log-fail { color: var(--accent); }
+        
+        .spinner { display: none; width: 20px; height: 20px; border: 2px solid rgba(0,0,0,0.2); border-top-color: #000; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SMS Bomb Service</h1>
+            <p>Rapid multi-threaded OTP delivery</p>
+        </div>
+
+        <div class="panel">
+            <div class="input-group">
+                <label>Target Number (PH)</label>
+                <input type="text" id="phoneInput" placeholder="09123456789" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label>Batches (1-5)</label>
+                <input type="number" id="batchInput" value="1" min="1" max="5">
+            </div>
+            <button class="btn btn-primary" id="attackBtn" onclick="startAttack()">
+                <span id="btnText">Launch Attack</span>
+                <div class="spinner" id="spinner"></div>
+            </button>
+
+            <div class="stats" id="statsPanel" style="display: none;">
+                <div class="stat-box">
+                    <span id="statTotal">0</span>
+                    <label>Total</label>
+                </div>
+                <div class="stat-box">
+                    <span id="statSuccess" class="log-success">0</span>
+                    <label>Success</label>
+                </div>
+                <div class="stat-box">
+                    <span id="statFail" class="log-fail">0</span>
+                    <label>Failed</label>
+                </div>
+            </div>
+
+            <div class="logs" id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        async function startAttack() {
+            const phone = document.getElementById('phoneInput').value;
+            const batches = document.getElementById('batchInput').value;
+
+            if (!phone) return alert("Enter a phone number");
+
+            const btn = document.getElementById('attackBtn');
+            const btnText = document.getElementById('btnText');
+            const spinner = document.getElementById('spinner');
+            const statsPanel = document.getElementById('statsPanel');
+            const logContainer = document.getElementById('logContainer');
+
+            btn.disabled = true;
+            btnText.innerText = "Firing...";
+            spinner.style.display = "block";
+            statsPanel.style.display = "none";
+            logContainer.style.display = "none";
+            logContainer.innerHTML = '';
+
+            try {
+                const res = await fetch('/api/attack', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, batches: parseInt(batches) })
+                });
+                
+                const data = await res.json();
+
+                if (data.detail) {
+                    alert(data.detail);
+                    return;
+                }
+
+                // Show results
+                document.getElementById('statTotal').innerText = data.total;
+                document.getElementById('statSuccess').innerText = data.success;
+                document.getElementById('statFail').innerText = data.fail;
+                statsPanel.style.display = "grid";
+                logContainer.style.display = "block";
+
+                data.logs.forEach(l => {
+                    const div = document.createElement('div');
+                    div.className = 'log-entry';
+                    div.innerHTML = `
+                        <span class="log-time">[${l.timestamp}]</span>
+                        <span class="log-service ${l.success ? 'log-success' : 'log-fail'}">${l.service}</span>
+                        <span class="log-msg">${l.success ? 'Sent' : 'Failed'}</span>
+                    `;
+                    logContainer.appendChild(div);
+                });
+
+            } catch (e) {
+                alert("Error connecting to Vercel API.");
+            } finally {
+                btn.disabled = false;
+                btnText.innerText = "Launch Attack";
+                spinner.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
